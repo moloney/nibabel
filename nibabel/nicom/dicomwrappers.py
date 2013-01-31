@@ -17,7 +17,9 @@ import operator
 import numpy as np
 
 from . import csareader as csar
+from . import dcmmeta
 from .dwiparams import B2q, nearest_pos_semi_def
+from .extract import default_extractor
 from ..volumeutils import allopen
 from ..onetime import setattr_on_read as one_time
 
@@ -84,6 +86,7 @@ class Wrapper(object):
     * get_data()
     * get_pixel_array()
     * is_same_series(other)
+    * get_dcmmeta : return dcmmeta.DcmMeta object
     * __getitem__ : return attributes from `dcm_data`
     * get(key[, default]) - as usual given __getitem__ above
 
@@ -355,6 +358,17 @@ class Wrapper(object):
                 if not func(v1, None):
                     return False
         return True
+        
+    def get_dcmmeta(self, extractor=None):
+        '''Return a DcmMeta object summarizing the meta data'''
+        if extractor is None:
+            extractor = default_extractor
+        result = dcmmeta.DcmMeta.make_empty(self.image_shape, 
+                                            self.get_affine(), 
+                                            np.eye(4), 
+                                            2)
+        result['const'].update(extractor(self.dcm_data))
+        return result
 
     def _scale_data(self, data):
         scale = self.get('RescaleSlope', 1)
@@ -514,6 +528,26 @@ class MultiframeWrapper(Wrapper):
             if offset != 0:
                 return data + offset
         return data
+        
+    def get_dcmmeta(self):
+        '''Return a DcmMeta object summarizing the meta data'''
+        result = super(MosaicWrapper, self).get_dcmmeta()
+        
+        #Unpack meta from the "SharedFunctionalGroup"
+        shared_dict = result['const']['SharedFunctionalGroupSequence'][0]
+        for key, val in shared_dict.iteritems():
+            assert not key in result['const']
+            result['const'][key] = val
+        del result['const']['SharedFunctionalGroupSequence']
+        
+        #Sort and unpack per frame meta data into the per slice dict
+        result['const']['PerFrameFunctionalGroupSequence'].sort()
+        for frame_meta in result['const']['PerFrameFunctionalGroupSequence']:
+            pass
+        
+        #Try simplifying per slice meta
+        
+        return result
 
 
 class SiemensWrapper(Wrapper):
@@ -794,6 +828,16 @@ class MosaicWrapper(SiemensWrapper):
         # delete any padding slices
         v3 = v3[...,:n_mosaic]
         return self._scale_data(v3)
+        
+    def get_dcmmeta(self):
+        '''Return a DcmMeta object summarizing the meta data'''
+        result = super(MosaicWrapper, self).get_dcmmeta()
+        #Reclassify some meta data as per slice
+        for key in ('CsaImage.MosaicRefAcqTimes',):
+            if key in result['const']:
+                result['per_slice'][key] = result['const'][key]
+                del result['const'][key]
+        return result
 
 
 def none_or_close(val1, val2, rtol=1e-5, atol=1e-6):
