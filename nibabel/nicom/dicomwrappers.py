@@ -531,7 +531,7 @@ class MultiframeWrapper(Wrapper):
         
     def get_dcmmeta(self):
         '''Return a DcmMeta object summarizing the meta data'''
-        result = super(MosaicWrapper, self).get_dcmmeta()
+        result = super(MultiframeWrapper, self).get_dcmmeta()
         
         #Unpack meta from the "SharedFunctionalGroup"
         shared_dict = result['const']['SharedFunctionalGroupSequence'][0]
@@ -543,9 +543,10 @@ class MultiframeWrapper(Wrapper):
         #Sort and unpack per frame meta data into the per slice dict
         result['const']['PerFrameFunctionalGroupSequence'].sort()
         for frame_meta in result['const']['PerFrameFunctionalGroupSequence']:
+            #TODO: Need to order this data correctly as we reclassify
             pass
         
-        #Try simplifying per slice meta
+        #TODO: Try simplifying per slice meta
         
         return result
 
