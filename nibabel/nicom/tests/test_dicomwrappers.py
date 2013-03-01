@@ -204,5 +204,6 @@ def test_assert_parallel():
     
 def test_multiframe_affine():
     #Make sure we find orientation/position/spacing info
-    dw = didw.wrapper_from_file(DATA_FILE_SLC_NORM)
+    dw = didw.wrapper_from_file(DATA_FILE_4D)
     dw.get_affine()
+    
