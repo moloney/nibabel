@@ -388,12 +388,24 @@ class MultiframeWrapper(Wrapper):
         self.dcm_data = dcm_data
         self._shape = None
 
+
     @one_time
     def image_shape(self):
         if len(self.dcm_data) == 0:
             raise WrapperError('No dcm_data specified')
         dim_idx0 = self.frame0.FrameContentSequence[0].DimensionIndexValues
-        n_dim = len(dim_idx0) + 1
+        n_dim = len(self.dcm_data.DimensionIndexSequence)
+        indices = np.array([frame.FrameContentSequence[0].DimensionIndexValues\
+                                for frame in self.dcm_data.PerFrameFunctionalGroupsSequence])
+        rank = np.linalg.matrix_rank(indices)
+        collinears=[]
+        keep_indices = np.ones(n_dim,dtype=np.bool)
+        keep_indices[0]=False
+        if rank < indices.shape[1]:
+            collinears = np.where(np.cov(indices.T)*(1-np.tri(4,k=0))>0)[1]
+            keep_indices[collinears] = False
+            n_dim = rank
+        n_dim = n_dim + 1
         shape = [0] * n_dim
         shape[:2] = [self.dcm_data.Rows, self.dcm_data.Columns]
         if n_dim > 3:
@@ -402,9 +414,9 @@ class MultiframeWrapper(Wrapper):
                 frame_idx = frame.FrameContentSequence[0].DimensionIndexValues
                 if frame_idx[0] != dim_idx0[0]:
                     raise ValueError("Cannot handle multi-stack files")
-                self._frame_indices.append(frame_idx[1:])
-                for idx in range(2, n_dim):
-                    shape[idx] = max(shape[idx], frame_idx[idx - 1])
+                self._frame_indices.append(np.array(frame_idx)[keep_indices].tolist())
+            for idx in range(2, n_dim):
+                shape[idx] = np.unique([fi[idx-2] for fi in self._frame_indices]).shape[0]
             n_vols = 1
             for idx in range(3, n_dim):
                 n_vols *= shape[idx]
