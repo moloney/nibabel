@@ -17,12 +17,15 @@ import operator
 import numpy as np
 
 from . import csareader as csar
-from .dwiparams import B2q, nearest_pos_semi_def
-from ..volumeutils import allopen
+from .dwiparams import B2q, nearest_pos_semi_def, q2bg
+from ..volumeutils import BinOpener
 from ..onetime import setattr_on_read as one_time
 
 
 class WrapperError(Exception):
+    pass
+
+class WrapperPrecisionError(WrapperError):
     pass
 
 def wrapper_from_file(file_like, *args, **kwargs):
@@ -33,8 +36,9 @@ def wrapper_from_file(file_like, *args, **kwargs):
     file_like : object
        filename string or file-like object, pointing to a valid DICOM
        file readable by ``pydicom``
-    *args : positional
-    **kwargs : keyword
+    \*args : positional
+        args to ``dicom.read_file`` command.
+    \*\*kwargs : keyword
         args to ``dicom.read_file`` command.  ``force=True`` might be a
         likely keyword argument.
 
@@ -44,8 +48,8 @@ def wrapper_from_file(file_like, *args, **kwargs):
        DICOM wrapper corresponding to DICOM data type
     '''
     import dicom
-    fobj = allopen(file_like)
-    dcm_data = dicom.read_file(fobj, *args, **kwargs)
+    with BinOpener(file_like) as fobj:
+        dcm_data = dicom.read_file(fobj, *args, **kwargs)
     return wrapper_from_data(dcm_data)
 
 
@@ -104,6 +108,8 @@ class Wrapper(object):
     is_multiframe = False
     b_matrix = None
     q_vector = None
+    b_value = None
+    b_vector = None
 
     def __init__(self, dcm_data=None):
         ''' Initialize wrapper
@@ -143,7 +149,8 @@ class Wrapper(object):
         iop = self.image_orient_patient
         if iop is None:
             return None
-        return np.cross(*iop.T[:])
+        # iop[:, 0] is column index cosine, iop[:, 1] is row index cosine
+        return np.cross(iop[:, 1], iop[:, 0])
 
     @one_time
     def rotation_matrix(self):
@@ -165,10 +172,11 @@ class Wrapper(object):
         # column index, and the second to changes in row index.
         R[:,:2] = np.fliplr(iop)
         R[:,2] = s_norm
-        # check this is in fact a rotation matrix
-        assert np.allclose(np.eye(3),
-                           np.dot(R, R.T),
-                           atol=1e-6)
+        # check this is in fact a rotation matrix. Error comes from compromise
+        # motivated in ``doc/source/notebooks/ata_error.ipynb``, and from
+        # discussion at https://github.com/nipy/nibabel/pull/156
+        if not np.allclose(np.eye(3), np.dot(R, R.T), atol=5e-5):
+            raise WrapperPrecisionError('Rotation matrix not nearly orthogonal')
         return R
 
     @one_time
@@ -357,8 +365,9 @@ class Wrapper(object):
         return True
 
     def _scale_data(self, data):
-        scale = self.get('RescaleSlope', 1)
-        offset = self.get('RescaleIntercept', 0)
+        # depending on pydicom and dicom files, values might need casting from Decimal to float
+        scale = float(self.get('RescaleSlope', 1))
+        offset = float(self.get('RescaleIntercept', 0))
         # a little optimization.  If we are applying either the scale or
         # the offset, we need to allow upcasting to float.
         if scale != 1:
@@ -368,6 +377,24 @@ class Wrapper(object):
         if offset != 0:
             return data + offset
         return data
+
+    @one_time
+    def b_value(self):
+        """ Return b value for diffusion or None if not available
+        """
+        q_vec = self.q_vector
+        if q_vec is None:
+            return None
+        return q2bg(q_vec)[0]
+
+    @one_time
+    def b_vector(self):
+        """ Return b vector for diffusion or None if not available
+        """
+        q_vec = self.q_vector
+        if q_vec is None:
+            return None
+        return q2bg(q_vec)[1]
 
 
 class MultiframeWrapper(Wrapper):
