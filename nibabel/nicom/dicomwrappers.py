@@ -470,9 +470,7 @@ class MultiframeWrapper(Wrapper):
         # Try to determine slice order and minimal image position patient
         self._frame_slc_ord = self._ipp = None
         try:
-            frame_ipps = [
-                f.PlanePositionSequence[0].ImagePositionPatient for f in self.frames
-            ]
+            frame_ipps = [f.PlanePositionSequence[0].ImagePositionPatient for f in self.frames]
         except AttributeError:
             try:
                 frame_ipps = [self.shared.PlanePositionSequence[0].ImagePositionPatient]
@@ -483,7 +481,9 @@ class MultiframeWrapper(Wrapper):
             frame_slc_pos = [np.inner(ipp, self.slice_normal) for ipp in frame_ipps]
             rnd_slc_pos = np.round(frame_slc_pos, 4)
             uniq_slc_pos = np.unique(rnd_slc_pos)
-            pos_ord_map = {val: order for val, order in zip(uniq_slc_pos, np.argsort(uniq_slc_pos))}
+            pos_ord_map = {
+                val: order for val, order in zip(uniq_slc_pos, np.argsort(uniq_slc_pos))
+            }
             self._frame_slc_ord = [pos_ord_map[pos] for pos in rnd_slc_pos]
             self._ipp = frame_ipps[np.argmin(frame_slc_pos)]
         self._shape = None
@@ -592,35 +592,32 @@ class MultiframeWrapper(Wrapper):
             # Replace slice indices with order determined from slice positions along normal
             if row_idx == slice_dim_idx:
                 if len(shape) > 2:
-                    raise WrapperError("Non-singular index precedes the slice index")
+                    raise WrapperError('Non-singular index precedes the slice index')
                 row = self._frame_slc_ord
                 frame_indices.T[row_idx, :] = row
                 unique = np.unique(row)
                 if len(unique) != count:
                     raise WrapperError("Number of slice indices and positions don't match")
             elif count == n_frames:
-                if shape[-1] == "remaining":
-                    raise WrapperError("At most one index have ambiguous size")
-                shape.append("remaining")
+                if shape[-1] == 'remaining':
+                    raise WrapperError('At most one index have ambiguous size')
+                shape.append('remaining')
                 continue
             new_parts, leftover = divmod(curr_parts, count)
             expected = new_parts * frames_per_part
-            if (
-                leftover != 0 or 
-                any(np.count_nonzero(row == val) != expected for val in unique)
-            ):
+            if leftover != 0 or any(np.count_nonzero(row == val) != expected for val in unique):
                 if row_idx == slice_dim_idx:
-                    raise WrapperError("Missing slices from multiframe")
+                    raise WrapperError('Missing slices from multiframe')
                 del_indices[row_idx] = count
                 continue
-            if shape[-1] == "remaining":
+            if shape[-1] == 'remaining':
                 shape[-1] = new_parts
                 frames_per_part *= shape[-1]
                 new_parts = 1
             frames_per_part *= count
             shape.append(count)
             curr_parts = new_parts
-        if shape[-1] == "remaining":
+        if shape[-1] == 'remaining':
             if curr_parts > 1:
                 shape[-1] = curr_parts
                 curr_parts = 1
@@ -633,7 +630,7 @@ class MultiframeWrapper(Wrapper):
                 if len(ns_failed) > 1:
                     # If some indices weren't used yet but we still have unaccounted for
                     # partitions, try combining indices into single tuple and using that
-                    tup_dtype = np.dtype(','.join(["I"] * len(ns_failed)))
+                    tup_dtype = np.dtype(','.join(['I'] * len(ns_failed)))
                     row = [tuple(x for x in vals) for vals in frame_indices[:, ns_failed]]
                     row = np.array(row, dtype=tup_dtype)
             frame_indices = np.delete(frame_indices, np.array(list(del_indices.keys())), axis=1)
@@ -642,18 +639,19 @@ class MultiframeWrapper(Wrapper):
                 count = len(unique)
                 new_parts, rem = divmod(curr_parts, count)
                 allowed_val_counts = [new_parts * frames_per_part, n_frames]
-                if (
-                    rem == 0 and 
-                    all(np.count_nonzero(row == val) in allowed_val_counts for val in unique)
+                if rem == 0 and all(
+                    np.count_nonzero(row == val) in allowed_val_counts for val in unique
                 ):
                     shape.append(count)
                     curr_parts = new_parts
                     ord_vals = np.argsort(unique)
                     order = {tuple(unique[i]): ord_vals[i] for i in range(count)}
                     ord_row = np.array([order[tuple(v)] for v in row])
-                    frame_indices = np.hstack([frame_indices, np.array(ord_row).reshape((n_frames, 1))])
+                    frame_indices = np.hstack(
+                        [frame_indices, np.array(ord_row).reshape((n_frames, 1))]
+                    )
         if curr_parts > 1:
-            raise WrapperError("Unable to determine sorting of final dimension(s)")
+            raise WrapperError('Unable to determine sorting of final dimension(s)')
         # Store frame indices
         self._frame_indices = frame_indices
         return tuple(shape)

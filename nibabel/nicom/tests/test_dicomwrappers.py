@@ -398,11 +398,11 @@ def fake_frames(seq_name, field_name, value_seq, frame_seq=None):
 
 
 def fake_shape_dependents(
-    div_seq, 
-    sid_seq=None, 
-    sid_dim=None, 
-    ipp_seq=None, 
-    slice_dim=None, 
+    div_seq,
+    sid_seq=None,
+    sid_dim=None,
+    ipp_seq=None,
+    slice_dim=None,
     flip_ipp_idx_corr=False,
 ):
     """Make a fake dictionary of data that ``image_shape`` is dependent on.
@@ -431,7 +431,7 @@ def fake_shape_dependents(
             attr_strs = []
             for attr in dir(self):
                 if attr[0].isupper():
-                    attr_strs.append(f"{attr}={getattr(self, attr)}")
+                    attr_strs.append(f'{attr}={getattr(self, attr)}')
             return f"{self.__class__.__name__}({', '.join(attr_strs)})"
 
     class DimIdxSeqElem(PrintBase):
@@ -444,11 +444,11 @@ def fake_shape_dependents(
         def __init__(self, div, sid):
             self.DimensionIndexValues = div
             self.StackID = sid
-    
+
     class PlnPosSeqElem(PrintBase):
         def __init__(self, ipp):
             self.ImagePositionPatient = ipp
-    
+
     class PlnOrientSeqElem(PrintBase):
         def __init__(self, iop):
             self.ImageOrientationPatient = iop
@@ -466,7 +466,7 @@ def fake_shape_dependents(
         if sid_dim is None:
             sid_dim = 0
         sid_seq = [div[sid_dim] for div in div_seq]
-    # Dertermine slice_dim and create per-slice ipp information
+    # Determine slice_dim and create per-slice ipp information
     if slice_dim is None:
         slice_dim = 1 if sid_dim == 0 else 0
     num_of_frames = len(div_seq)
@@ -474,19 +474,17 @@ def fake_shape_dependents(
     uniq_slc_indices = np.unique(frame_slc_indices)
     n_slices = len(uniq_slc_indices)
     assert num_of_frames % n_slices == 0
-    n_vols = num_of_frames // n_slices
-    iop_seq = [(0., 1., 0., 1., 0., 0.) for _ in range(num_of_frames)]
+    iop_seq = [(0.0, 1.0, 0.0, 1.0, 0.0, 0.0) for _ in range(num_of_frames)]
     if ipp_seq is None:
-        slc_locs = np.linspace(-1., 1., n_slices)
+        slc_locs = np.linspace(-1.0, 1.0, n_slices)
         if flip_ipp_idx_corr:
             slc_locs = slc_locs[::-1]
         slc_idx_loc = {
-            div_idx : slc_locs[arr_idx] 
-            for arr_idx, div_idx in enumerate(np.sort(uniq_slc_indices))
+            div_idx: slc_locs[arr_idx] for arr_idx, div_idx in enumerate(np.sort(uniq_slc_indices))
         }
-        ipp_seq = [(-1., -1., slc_idx_loc[idx]) for idx in frame_slc_indices]
+        ipp_seq = [(-1.0, -1.0, slc_idx_loc[idx]) for idx in frame_slc_indices]
     else:
-        assert flip_ipp_idx_corr is False # caller can flip it themselves
+        assert flip_ipp_idx_corr is False  # caller can flip it themselves
         assert len(ipp_seq) == num_of_frames
     # create the DimensionIndexSequence
     dim_idx_seq = [DimIdxSeqElem()] * n_indices
@@ -500,7 +498,7 @@ def fake_shape_dependents(
         dim_idx_seq[sid_dim] = DimIdxSeqElem(sid_tag, fcs_tag)
     # create the PerFrameFunctionalGroupsSequence
     frames = [
-        PerFrmFuncGrpSeqElem(div, sid, ipp, iop) 
+        PerFrmFuncGrpSeqElem(div, sid, ipp, iop)
         for div, sid, ipp, iop in zip(div_seq, sid_seq, ipp_seq, iop_seq)
     ]
     return {
@@ -618,9 +616,14 @@ class TestMultiFrameWrapper(TestCase):
         assert MFW(fake_mf).image_shape == (32, 64, 2, 3)
         # Test with combo indices, here with the last two needing to be combined into
         # a single index corresponding to [(1, 1), (1, 1), (2, 1), (2, 1), (2, 2), (2, 2)]
-        div_seq = ((1, 1, 1, 1), (1, 2, 1, 1), 
-                   (1, 1, 2, 1), (1, 2, 2, 1), 
-                   (1, 1, 2, 2), (1, 2, 2, 2))
+        div_seq = (
+            (1, 1, 1, 1),
+            (1, 2, 1, 1),
+            (1, 1, 2, 1),
+            (1, 2, 2, 1),
+            (1, 1, 2, 2),
+            (1, 2, 2, 2),
+        )
         fake_mf.update(fake_shape_dependents(div_seq, sid_dim=0))
         assert MFW(fake_mf).image_shape == (32, 64, 2, 3)
         # Test invalid 4D indices
@@ -636,13 +639,20 @@ class TestMultiFrameWrapper(TestCase):
         div_seq = ((1, 1, 1), (1, 2, 2), (1, 1, 3), (1, 2, 4), (1, 1, 5), (1, 2, 6))
         fake_mf.update(fake_shape_dependents(div_seq, sid_dim=0))
         assert MFW(fake_mf).image_shape == (32, 64, 2, 3)
-        div_seq = ((1, 1, 1, 1), (1, 2, 2, 1), 
-                   (1, 1, 3, 1), (1, 2, 4, 1),
-                   (1, 1, 5, 1), (1, 2, 6, 1),
-                   (1, 1, 7, 2), (1, 2, 8, 2),
-                   (1, 1, 9, 2), (1, 2, 10, 2),
-                   (1, 1, 11, 2), (1, 2, 12, 2),
-                  )
+        div_seq = (
+            (1, 1, 1, 1),
+            (1, 2, 2, 1),
+            (1, 1, 3, 1),
+            (1, 2, 4, 1),
+            (1, 1, 5, 1),
+            (1, 2, 6, 1),
+            (1, 1, 7, 2),
+            (1, 2, 8, 2),
+            (1, 1, 9, 2),
+            (1, 2, 10, 2),
+            (1, 1, 11, 2),
+            (1, 2, 12, 2),
+        )
         fake_mf.update(fake_shape_dependents(div_seq, sid_dim=0))
         assert MFW(fake_mf).image_shape == (32, 64, 2, 3, 2)
 
@@ -713,9 +723,7 @@ class TestMultiFrameWrapper(TestCase):
             dw.image_position
         # Make a fake frame
         iop = [0, 1, 0, 1, 0, 0]
-        frames = fake_frames(
-            'PlaneOrientationSequence', 'ImageOrientationPatient', [iop]
-        )
+        frames = fake_frames('PlaneOrientationSequence', 'ImageOrientationPatient', [iop])
         frames = fake_frames(
             'PlanePositionSequence', 'ImagePositionPatient', [[-2.0, 3.0, 7]], frames
         )
@@ -733,13 +741,9 @@ class TestMultiFrameWrapper(TestCase):
         assert_array_equal(MFW(fake_mf).image_position, [-2, 3, 7])
         assert MFW(fake_mf).image_position.dtype == float
         # We should get minimum along slice normal with multiple frames
-        frames = fake_frames(
-            'PlaneOrientationSequence', 'ImageOrientationPatient', [iop] * 2
-        )
+        frames = fake_frames('PlaneOrientationSequence', 'ImageOrientationPatient', [iop] * 2)
         ipps = [[-2.0, 3.0, 7], [-2.0, 3.0, 6]]
-        frames = fake_frames(
-            'PlanePositionSequence', 'ImagePositionPatient', ipps, frames
-        )
+        frames = fake_frames('PlanePositionSequence', 'ImagePositionPatient', ipps, frames)
         fake_mf['PerFrameFunctionalGroupsSequence'] = frames
         assert_array_equal(MFW(fake_mf).image_position, [-2, 3, 6])
 
